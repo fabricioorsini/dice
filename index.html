@@ -338,6 +338,12 @@
                 <span class="step-val" data-role="stepVal">0</span>
                 <button type="button" data-role="stepUp">+</button>
               </div>
+              <label>Crítico</label>
+              <div class="stepper">
+                <button type="button" data-role="critDown">−</button>
+                <span class="step-val" data-role="critVal">0</span>
+                <button type="button" data-role="critUp">+</button>
+              </div>
             </div>
           </div>
         </div>
@@ -387,38 +393,56 @@
   }
 
   /* ===== Combate Opevere =====
-     Bônus (+) promove as falhas mais altas para o acerto-de-borda.
-     Penalidade (-) rebaixa os acertos mais baixos para falha.
+     Bônus PURO (+) promove as falhas mais altas para o acerto-de-borda.
+     Penalidade PURA (-) rebaixa os acertos mais baixos para falha.
+     Bônus de CRÍTICO (+) promove os acertos mais altos (abaixo do 6) para crítico.
+       - só sobe (0..+3); na defesa, o contra-ataque (+1 turno) fica só no 6 natural.
+     Ordem: aplica o puro primeiro, depois o de crítico.
      O 1 só é "falha crítica" enquanto ainda for falha. */
   const ATK_BASE = ['FA','FA','MIN','MED','MAX','CRIT'];
   const DEF_BASE = ['FA','FA','FA','DEF','DEFC','DEFCR'];
   const FAIL = new Set(['FA','FC']);
-  const PROMOTE_TO = { atk: 'MIN', def: 'DEF' };
+  const PROMOTE_PURE = { atk: 'MIN', def: 'DEF' };
+  const PROMOTE_CRIT = { atk: 'CRIT', def: 'DEFCR_NC' }; // crítico promovido (defesa SEM contra-ataque)
+  const ALREADY_CRIT = { atk: new Set(['CRIT']), def: new Set(['DEFCR','DEFCR_NC']) };
   const COMBAT_TEXT = {
-    FC:   'Falha Crítica',
-    FA:   'Falha',
-    MIN:  'Acerta Dano Mínimo',
-    MED:  'Acerta Dano Médio',
-    MAX:  'Acerta Dano Máximo',
-    CRIT: 'Acerta Dano Crítico',
-    DEF:  'Defende Ataques Normais',
-    DEFC: 'Defende Ataques Normais e Críticos',
-    DEFCR:'Defesa Crítica (+1 turno)',
+    FC:      'Falha Crítica',
+    FA:      'Falha',
+    MIN:     'Acerta Dano Mínimo',
+    MED:     'Acerta Dano Médio',
+    MAX:     'Acerta Dano Máximo',
+    CRIT:    'Acerta Dano Crítico',
+    DEF:     'Defende Ataques Normais',
+    DEFC:    'Defende Ataques Normais e Críticos',
+    DEFCR:   'Defesa Crítica (+1 turno)',
+    DEFCR_NC:'Defesa Crítica (sem contra-ataque)',
   };
-  // resultados que ganham cor: verde nos "críticos bons", vermelho na falha crítica
-  const GOOD = new Set(['CRIT','DEFCR']);
+  // resultados que ganham cor verde (críticos bons); vermelho fica na falha crítica
+  const GOOD = new Set(['CRIT','DEFCR','DEFCR_NC']);
 
-  function buildCombatTable(mode, level) {
+  function buildCombatTable(mode, level, critLevel) {
     let t = (mode === 'atk' ? ATK_BASE : DEF_BASE).slice();
+    // 1) bônus/penalidade PURO
     if (level > 0) {
       let n = level;
       for (let i = t.length - 1; i >= 0 && n > 0; i--) {
-        if (FAIL.has(t[i])) { t[i] = PROMOTE_TO[mode]; n--; }
+        if (FAIL.has(t[i])) { t[i] = PROMOTE_PURE[mode]; n--; }
       }
     } else if (level < 0) {
       let n = -level;
       for (let i = 0; i < t.length && n > 0; i++) {
         if (!FAIL.has(t[i])) { t[i] = 'FA'; n--; }
+      }
+    }
+    // 2) bônus de CRÍTICO (só sobe): promove os acertos comuns mais altos (abaixo do 6) para crítico
+    if (critLevel > 0) {
+      let n = critLevel;
+      for (let i = t.length - 1; i >= 0 && n > 0; i--) {
+        if (i === 5) continue;                  // o 6 é o crítico natural, não conta como "promovido"
+        if (FAIL.has(t[i])) continue;           // não promove falha
+        if (ALREADY_CRIT[mode].has(t[i])) continue; // já é crítico
+        t[i] = PROMOTE_CRIT[mode];
+        n--;
       }
     }
     // falha crítica só no 1, e só se ainda for falha
@@ -455,10 +479,17 @@
     const stepValEl    = block.querySelector('[data-role="stepVal"]');
     const stepUp       = block.querySelector('[data-role="stepUp"]');
     const stepDown     = block.querySelector('[data-role="stepDown"]');
+    const critValEl    = block.querySelector('[data-role="critVal"]');
+    const critUp       = block.querySelector('[data-role="critUp"]');
+    const critDown     = block.querySelector('[data-role="critDown"]');
     const dieButtons   = []; // preenchido ao criar
 
     let combatMode = 'atk';   // 'atk' | 'def'
-    let diceBonus  = 0;       // -3..+3
+    // Cada modo guarda seus próprios bônus (memória independente)
+    const combatState = {
+      atk: { pure: 0, crit: 0 },  // puro: -3..+3 | crit: 0..+3
+      def: { pure: 0, crit: 0 },
+    };
 
     function clearEmptyMsg() {
       const empty = historyEl.querySelector('.empty');
@@ -495,19 +526,27 @@
       syncUI();
     });
 
-    // switch ataque/defesa
+    // switch ataque/defesa (cada modo tem seus próprios valores)
     switchEl.querySelectorAll('button').forEach(b => {
       b.addEventListener('click', () => {
         combatMode = b.dataset.mode;
         switchEl.querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b));
+        renderStep();
+        renderCrit();
       });
     });
 
-    // stepper de bônus (-3..+3)
-    function renderStep() { stepValEl.textContent = (diceBonus > 0 ? '+' : '') + diceBonus; }
-    stepUp.addEventListener('click',   () => { if (diceBonus < 3)  { diceBonus++; renderStep(); } });
-    stepDown.addEventListener('click', () => { if (diceBonus > -3) { diceBonus--; renderStep(); } });
+    // stepper de bônus puro (-3..+3) — atua no modo ativo
+    function renderStep() { stepValEl.textContent = (combatState[combatMode].pure > 0 ? '+' : '') + combatState[combatMode].pure; }
+    stepUp.addEventListener('click',   () => { const s = combatState[combatMode]; if (s.pure < 3)  { s.pure++; renderStep(); } });
+    stepDown.addEventListener('click', () => { const s = combatState[combatMode]; if (s.pure > -3) { s.pure--; renderStep(); } });
     renderStep();
+
+    // stepper de crítico (0..+3, só sobe) — atua no modo ativo
+    function renderCrit() { critValEl.textContent = (combatState[combatMode].crit > 0 ? '+' : '') + combatState[combatMode].crit; }
+    critUp.addEventListener('click',   () => { const s = combatState[combatMode]; if (s.crit < 3) { s.crit++; renderCrit(); } });
+    critDown.addEventListener('click', () => { const s = combatState[combatMode]; if (s.crit > 0) { s.crit--; renderCrit(); } });
+    renderCrit();
 
     function readQty() {
       let q = parseInt(qtyInput.value, 10);
@@ -564,9 +603,14 @@
       if (isCombat) {
         // só o D6 chega aqui (os outros estão travados), mas garantimos:
         if (sides !== 6) return;
-        const table = buildCombatTable(combatMode, diceBonus);
+        const diceBonus = combatState[combatMode].pure;
+        const critBonus = combatState[combatMode].crit;
+        const table = buildCombatTable(combatMode, diceBonus, critBonus);
         const label = combatMode === 'atk' ? 'ATAQUE' : 'DEFESA';
-        const bonusTxt = diceBonus !== 0 ? ' (' + (diceBonus > 0 ? '+' : '') + diceBonus + ' dado' + (Math.abs(diceBonus) > 1 ? 's' : '') + ')' : '';
+        const parts = [];
+        if (diceBonus !== 0) parts.push((diceBonus > 0 ? '+' : '') + diceBonus + ' dado' + (Math.abs(diceBonus) > 1 ? 's' : ''));
+        if (critBonus !== 0) parts.push('+' + critBonus + ' crít');
+        const bonusTxt = parts.length ? ' (' + parts.join(', ') + ')' : '';
 
         if (qty === 1) {
           const v = rolls[0];
