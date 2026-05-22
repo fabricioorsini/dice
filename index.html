@@ -48,7 +48,6 @@
     text-align: center;
   }
 
-  /* Blocos empilhados, um embaixo do outro */
   .grid {
     display: flex;
     flex-direction: column;
@@ -58,18 +57,6 @@
 
   .block { width: 640px; }
 
-  .block-title {
-    font-size: 0.95rem;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: var(--accent);
-    margin-bottom: 12px;
-    text-align: center;
-    border-bottom: 1px solid var(--line);
-    padding-bottom: 8px;
-  }
-
-  /* Cada bloco: duas colunas (esquerda valor+dados | direita histórico) */
   .main {
     display: flex;
     gap: 22px;
@@ -149,21 +136,29 @@
   }
   .die-btn:active { transform: translateY(2px) scale(0.97); }
 
-  /* Linha do input de quantidade (só no bloco novo) */
-  .qty-row {
+  /* Painel de controles abaixo dos dados */
+  .controls {
+    margin-top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .ctrl-row {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-top: 16px;
     justify-content: center;
+    flex-wrap: wrap;
   }
-  .qty-row label {
+  .ctrl-row label {
     font-size: 0.8rem;
     letter-spacing: 1px;
     text-transform: uppercase;
     color: var(--muted);
   }
-  .qty-row input {
+
+  .num-input {
     width: 70px;
     background: var(--panel);
     border: 1px solid var(--line);
@@ -175,10 +170,42 @@
     padding: 8px 6px;
     border-radius: 6px;
   }
-  .qty-row input:focus {
-    outline: none;
-    border-color: var(--accent);
+  .num-input:focus { outline: none; border-color: var(--accent); }
+  .num-input:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  /* Checkbox "Contador" */
+  .toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
   }
+  .toggle input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+  .toggle span {
+    font-size: 0.8rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* Linha da condição (operador + valor) */
+  .cond-row.disabled { opacity: 0.35; pointer-events: none; }
+
+  .op-select {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    color: var(--txt);
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 1.15rem;
+    font-weight: bold;
+    text-align: center;
+    padding: 7px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .op-select:focus { outline: none; border-color: var(--accent); }
+  .op-select:disabled { opacity: 0.35; cursor: not-allowed; }
 
   /* Histórico */
   .hist-wrap {
@@ -221,7 +248,7 @@
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: 8px;
-    height: 230px;
+    height: 300px;
     min-height: 90px;
     min-width: 160px;
     overflow: auto;
@@ -247,6 +274,17 @@
   }
   .history li:nth-child(odd) { background: rgba(255,255,255,0.015); }
 
+  /* Cabeçalho de grupo de rolagem no histórico */
+  .history li.group-head {
+    justify-content: center;
+    color: var(--accent);
+    font-size: 0.72rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    background: rgba(196,98,45,0.08);
+    border-bottom: 1px solid var(--line);
+  }
+
   .h-die { color: var(--muted); letter-spacing: 1px; font-size: 0.85rem; }
   .h-val { font-weight: bold; font-size: 1.05rem; color: var(--accent-2); }
   .h-val.hi { color: var(--crit-hi); }
@@ -269,8 +307,7 @@
 
   <div class="grid">
 
-    <!-- ============ Rolagem (soma de N roladas) ============ -->
-    <div class="block" data-block="2" data-multi="true">
+    <div class="block">
       <div class="main">
         <div class="left-col">
           <div class="result-box">
@@ -278,12 +315,37 @@
             <div class="result-value" data-role="resultValue">—</div>
             <div class="crit-label" data-role="critLabel"></div>
           </div>
+
           <div class="dice" data-role="dice"></div>
-          <div class="qty-row">
-            <label for="qty2">Qtd. de roladas</label>
-            <input type="number" id="qty2" data-role="qty" min="1" max="100" value="1">
+
+          <div class="controls">
+            <div class="ctrl-row">
+              <label for="qty">Qtd. de roladas</label>
+              <input type="number" id="qty" class="num-input" data-role="qty" min="1" max="100" value="1">
+            </div>
+
+            <div class="ctrl-row">
+              <label class="toggle">
+                <input type="checkbox" data-role="counterToggle">
+                <span>Contador</span>
+              </label>
+            </div>
+
+            <div class="ctrl-row cond-row disabled" data-role="condRow">
+              <label>Condição: dado</label>
+              <select class="op-select" data-role="op" disabled>
+                <option value="==">==</option>
+                <option value="!=">!=</option>
+                <option value="&gt;">&gt;</option>
+                <option value="&gt;=">&gt;=</option>
+                <option value="&lt;" selected>&lt;</option>
+                <option value="&lt;=">&lt;=</option>
+              </select>
+              <input type="number" class="num-input" data-role="condVal" value="5" disabled>
+            </div>
           </div>
         </div>
+
         <div class="right-col">
           <div class="hist-wrap">
             <div class="hist-head">
@@ -320,90 +382,139 @@
     return crit === 'hi' ? 'Acerto Crítico!' : crit === 'lo' ? 'Falha Crítica!' : '';
   }
 
+  // Avalia a condição como um IF (operadores estilo C#)
+  function passesCondition(value, op, target) {
+    switch (op) {
+      case '==': return value === target;
+      case '!=': return value !== target;
+      case '>':  return value >  target;
+      case '>=': return value >= target;
+      case '<':  return value <  target;
+      case '<=': return value <= target;
+      default:   return false;
+    }
+  }
+
   function nowTime() {
     return new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   }
 
-  // Inicializa cada bloco
   document.querySelectorAll('.block').forEach(block => {
-    const isMulti   = block.dataset.multi === 'true';
-    const diceEl    = block.querySelector('[data-role="dice"]');
-    const resultDie = block.querySelector('[data-role="resultDie"]');
-    const resultVal = block.querySelector('[data-role="resultValue"]');
-    const critLabel = block.querySelector('[data-role="critLabel"]');
-    const historyEl = block.querySelector('[data-role="history"]');
-    const clearBtn  = block.querySelector('[data-role="clearBtn"]');
-    const qtyInput  = block.querySelector('[data-role="qty"]'); // só existe no bloco 2
-
-    let historyHasItems = false;
+    const diceEl       = block.querySelector('[data-role="dice"]');
+    const resultDie    = block.querySelector('[data-role="resultDie"]');
+    const resultVal    = block.querySelector('[data-role="resultValue"]');
+    const critLabel    = block.querySelector('[data-role="critLabel"]');
+    const historyEl    = block.querySelector('[data-role="history"]');
+    const clearBtn     = block.querySelector('[data-role="clearBtn"]');
+    const qtyInput     = block.querySelector('[data-role="qty"]');
+    const counterTgl   = block.querySelector('[data-role="counterToggle"]');
+    const condRow      = block.querySelector('[data-role="condRow"]');
+    const opSelect     = block.querySelector('[data-role="op"]');
+    const condValInput = block.querySelector('[data-role="condVal"]');
 
     function clearEmptyMsg() {
       const empty = historyEl.querySelector('.empty');
       if (empty) empty.remove();
     }
 
-    function addHistoryLine(sides, value, crit) {
+    // Liga/desliga os controles de condição conforme o modo contador
+    function syncCounterUI() {
+      const on = counterTgl.checked;
+      opSelect.disabled = !on;
+      condValInput.disabled = !on;
+      condRow.classList.toggle('disabled', !on);
+    }
+    counterTgl.addEventListener('change', syncCounterUI);
+    syncCounterUI();
+
+    function readQty() {
+      let qty = parseInt(qtyInput.value, 10);
+      if (isNaN(qty) || qty < 1) qty = 1;
+      if (qty > 100) qty = 100;
+      qtyInput.value = qty;
+      return qty;
+    }
+
+    // Adiciona um cabeçalho de grupo (ex: "10x D20 ( < 5 )")
+    function addGroupHead(text) {
+      clearEmptyMsg();
+      const li = document.createElement('li');
+      li.className = 'group-head';
+      li.textContent = text;
+      historyEl.insertBefore(li, historyEl.firstChild);
+      return li;
+    }
+
+    // Adiciona uma linha de rolada. `tone` define a cor: 'hi', 'lo' ou null.
+    function addHistoryLine(sides, value, tone, beforeNode) {
       clearEmptyMsg();
       const li = document.createElement('li');
       li.innerHTML =
         '<span class="h-die">D' + sides + '</span>' +
-        '<span class="h-val' + (crit ? ' ' + crit : '') + '">' + value + '</span>' +
+        '<span class="h-val' + (tone ? ' ' + tone : '') + '">' + value + '</span>' +
         '<span class="h-time">' + nowTime() + '</span>';
-      historyEl.insertBefore(li, historyEl.firstChild);
-      historyHasItems = true;
+      historyEl.insertBefore(li, beforeNode || historyEl.firstChild);
     }
 
     function roll(sides) {
-      if (isMulti) {
-        // Lê a quantidade (mínimo 1, máximo 100)
-        let qty = parseInt(qtyInput.value, 10);
-        if (isNaN(qty) || qty < 1) qty = 1;
-        if (qty > 100) qty = 100;
-        qtyInput.value = qty;
+      const qty = readQty();
+      const isCounter = counterTgl.checked;
 
-        const rolls = [];
-        for (let i = 0; i < qty; i++) {
-          rolls.push(Math.floor(Math.random() * sides) + 1);
-        }
-        const total = rolls.reduce((a, b) => a + b, 0);
+      // Gera as roladas
+      const rolls = [];
+      for (let i = 0; i < qty; i++) {
+        rolls.push(Math.floor(Math.random() * sides) + 1);
+      }
 
-        if (qty === 1) {
-          // 1 rolada = comporta-se como rolagem simples (mostra o número + crítico)
-          const value = rolls[0];
-          const crit = getCrit(sides, value);
-          resultDie.textContent = 'D' + sides;
-          resultVal.textContent = value;
-          resultVal.className = 'result-value roll-anim' + (crit ? ' crit-' + crit : '');
-          critLabel.className = 'crit-label' + (crit ? ' ' + crit : '');
-          critLabel.textContent = critText(crit);
-        } else {
-          // Várias roladas: mostrador mostra "Nx D" + soma, sem crítico
-          resultDie.textContent = qty + 'x D' + sides;
-          resultVal.textContent = total;
-          resultVal.className = 'result-value roll-anim';
-          critLabel.className = 'crit-label';
-          critLabel.textContent = '';
-        }
-        setTimeout(() => resultVal.classList.remove('roll-anim'), 120);
+      if (isCounter) {
+        // ---- MODO CONTADOR ----
+        const op = opSelect.value;
+        let target = parseInt(condValInput.value, 10);
+        if (isNaN(target)) target = 0;
 
-        // Histórico: cada rolada individual (mais recentes no topo, ordem da rolagem)
-        for (let i = rolls.length - 1; i >= 0; i--) {
-          addHistoryLine(sides, rolls[i], getCrit(sides, rolls[i]));
+        let hits = 0;
+        rolls.forEach(v => { if (passesCondition(v, op, target)) hits++; });
+
+        // Mostrador: "Nx D20 ( < 5 )" em cima, "hits / qty" embaixo
+        resultDie.textContent = qty + 'x D' + sides + ' ( ' + op + ' ' + target + ' )';
+        resultVal.textContent = hits + ' / ' + qty;
+        resultVal.className = 'result-value roll-anim';
+        critLabel.className = 'crit-label';
+        critLabel.textContent = '';
+
+        // Histórico: grupo + cada rolada, verde se passou, vermelho se não
+        const head = addGroupHead(qty + 'x D' + sides + '  (' + op + ' ' + target + ')  →  ' + hits + '/' + qty);
+        for (let i = 0; i < rolls.length; i++) {
+          const tone = passesCondition(rolls[i], op, target) ? 'hi' : 'lo';
+          addHistoryLine(sides, rolls[i], tone, head.nextSibling);
         }
-      } else {
-        // Bloco simples: uma rolada
-        const value = Math.floor(Math.random() * sides) + 1;
+      } else if (qty === 1) {
+        // ---- 1 ROLADA (rolagem simples) ----
+        const value = rolls[0];
         const crit = getCrit(sides, value);
-
         resultDie.textContent = 'D' + sides;
         resultVal.textContent = value;
         resultVal.className = 'result-value roll-anim' + (crit ? ' crit-' + crit : '');
         critLabel.className = 'crit-label' + (crit ? ' ' + crit : '');
         critLabel.textContent = critText(crit);
-        setTimeout(() => resultVal.classList.remove('roll-anim'), 120);
 
         addHistoryLine(sides, value, crit);
+      } else {
+        // ---- MODO SOMA ----
+        const total = rolls.reduce((a, b) => a + b, 0);
+        resultDie.textContent = qty + 'x D' + sides;
+        resultVal.textContent = total;
+        resultVal.className = 'result-value roll-anim';
+        critLabel.className = 'crit-label';
+        critLabel.textContent = '';
+
+        const head = addGroupHead(qty + 'x D' + sides + '  →  soma ' + total);
+        for (let i = 0; i < rolls.length; i++) {
+          addHistoryLine(sides, rolls[i], getCrit(sides, rolls[i]), head.nextSibling);
+        }
       }
+
+      setTimeout(() => resultVal.classList.remove('roll-anim'), 120);
     }
 
     // Cria os botões dos dados
@@ -415,7 +526,6 @@
       diceEl.appendChild(btn);
     });
 
-    // Limpar
     clearBtn.addEventListener('click', () => {
       historyEl.innerHTML = '<li class="empty">Nenhuma rolagem ainda.</li>';
       resultDie.textContent = 'Escolha um dado';
@@ -423,7 +533,6 @@
       resultVal.className = 'result-value';
       critLabel.textContent = '';
       critLabel.className = 'crit-label';
-      historyHasItems = false;
     });
   });
 </script>
